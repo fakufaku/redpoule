@@ -28,6 +28,8 @@
 #include <thread>
 #include <vector>
 
+namespace redpoule {
+
 const size_t max_n_threads = std::thread::hardware_concurrency();
 
 class ThreadPool {
@@ -55,22 +57,41 @@ class ThreadPool {
     _running = false;
 
     std::for_each(_threads.begin(), _threads.end(),
-                  [](std::thread& x) { x.join(); });
+                  [](std::thread &x) { x.join(); });
   }
 
   // getter for the number of threads used
   size_t get_num_threads() { return _n_threads; }
 
   void push(std::function<void()> &&task);
+  template <class T, class Func>
+  void parallel_for(T start, T end, Func &&f);
 };
 
-void ThreadPool::push(std::function<void()> &&task)
-{
+void ThreadPool::push(std::function<void()> &&task) {
   /*
    * Push a new job into the queue
    */
-    std::unique_lock<std::mutex> lock(_task_queue_mutex);
-    _task_queue.push(std::forward<std::function<void()>>(task));
+  std::unique_lock<std::mutex> lock(_task_queue_mutex);
+  _task_queue.push(std::forward<std::function<void()>>(task));
+}
+
+template <class T, class Func>
+void ThreadPool::parallel_for(T start, T end, Func &&f) {
+  for (T t = 0; t < get_num_threads(); t++) {
+    T block_size = end - start;
+    T block_start = t * block_size / get_num_threads();
+    T block_end = (t + 1) == get_num_threads()
+                      ? block_size
+                      : (t + 1) * block_size / get_num_threads();
+    push(std::bind(std::forward<Func>(f), block_start, block_end));
+  }
+
+  // busy wait
+  // TODO replace with condition variable
+  // https://en.cppreference.com/w/cpp/thread/condition_variable
+  while (_task_queue.size() > 0)
+    ;
 }
 
 void ThreadPool::infinite_loop() {
@@ -79,7 +100,6 @@ void ThreadPool::infinite_loop() {
    */
   std::function<void()> job;
   while (_running) {
-
     // get new job
     {
       std::unique_lock<std::mutex> lock(_task_queue_mutex);
@@ -92,3 +112,5 @@ void ThreadPool::infinite_loop() {
     job();
   }
 }
+
+}  // namespace redpoule

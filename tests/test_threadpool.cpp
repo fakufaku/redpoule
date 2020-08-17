@@ -26,9 +26,9 @@
 #include <thread>
 #include <vector>
 
-include "threadpool.hpp"
+#include "threadpool.hpp"
 
-const size_t very_large = 100000000;
+const size_t very_large = 10000000;
 
 int main(int argc, char** argv) {
   int iam, nt;
@@ -66,12 +66,6 @@ int main(int argc, char** argv) {
             for (int i = bi; i < ei; i++) {
               // inner loop
               {
-                /*
-                const int j = i * i;
-                // (optional) make output critical
-                std::lock_guard<std::mutex> lock(critical);
-                std::cout << j << std::endl;
-                */
                 for (int k = 0; k < 100; k++) foo[i]++;
               }
             }
@@ -91,7 +85,7 @@ int main(int argc, char** argv) {
   // with the thread pool
   std::cout << "Now with the thread pool" << std::endl;
   {
-    ThreadPool thread_pool;
+    redpoule::ThreadPool thread_pool;
     for (int t = 0; t < thread_pool.get_num_threads(); t++) {
       thread_pool.push(std::bind(
           [&](const int bi, const int ei, const int t) {
@@ -99,20 +93,31 @@ int main(int argc, char** argv) {
             for (int i = bi; i < ei; i++) {
               // inner loop
               {
-                /*
-                const int j = i * i;
-                // (optional) make output critical
-                std::lock_guard<std::mutex> lock(critical);
-                std::cout << j << std::endl;
-                */
                 for (int k = 0; k < 100; k++) foo[i]++;
               }
             }
           },
           t * foo.size() / thread_pool.get_num_threads(),
-          (t + 1) == thread_pool.get_num_threads() ? foo.size() : (t + 1) * foo.size() / thread_pool.get_num_threads(),
+          (t + 1) == thread_pool.get_num_threads()
+              ? foo.size()
+              : (t + 1) * foo.size() / thread_pool.get_num_threads(),
           t));
     }
+  }
+
+  for (int i = 0; i < 10; i++) std::cout << foo[i] << std::endl;
+
+  // with the thread pool parallel for
+  std::cout << "Now with the thread pool parallel for" << std::endl;
+  {
+    redpoule::ThreadPool thread_pool;
+    thread_pool.parallel_for(0ul, foo.size(),
+                             [&](size_t bi, size_t ei) {
+                               // loop over all items
+                               for (int i = bi; i < ei; i++) {
+                                 for (int k = 0; k < 100; k++) foo[i]++;
+                               }
+                             });
   }
 
   for (int i = 0; i < 10; i++) std::cout << foo[i] << std::endl;
