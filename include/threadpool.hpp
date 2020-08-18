@@ -64,24 +64,28 @@ class ThreadPool {
   size_t get_num_threads() { return _n_threads; }
 
   void push(std::function<void()> &&task);
-  template <class T, class Func>
-  void parallel_for(T start, T end, Func &&f);
+  template <class Func>
+  void parallel_for(size_t start, size_t end, Func &&f);
 };
 
 void ThreadPool::push(std::function<void()> &&task) {
   /*
-   * Push a new job into the queue
+   * Push a new task into the queue
    */
   std::unique_lock<std::mutex> lock(_task_queue_mutex);
   _task_queue.push(std::forward<std::function<void()>>(task));
 }
 
-template <class T, class Func>
-void ThreadPool::parallel_for(T start, T end, Func &&f) {
-  for (T t = 0; t < get_num_threads(); t++) {
-    T block_size = end - start;
-    T block_start = t * block_size / get_num_threads();
-    T block_end = (t + 1) == get_num_threads()
+template <class Func>
+void ThreadPool::parallel_for(size_t start, size_t end, Func &&f) {
+
+  if (start >= end)
+    return;
+
+  for (size_t t = 0; t < get_num_threads(); t++) {
+    size_t block_size = end - start;
+    size_t block_start = t * block_size / get_num_threads();
+    size_t block_end = (t + 1) == get_num_threads()
                       ? block_size
                       : (t + 1) * block_size / get_num_threads();
     push(std::bind(std::forward<Func>(f), block_start, block_end));
@@ -98,18 +102,18 @@ void ThreadPool::infinite_loop() {
   /*
    * The infinite loop run by the worker threads
    */
-  std::function<void()> job;
+  std::function<void()> task;
   while (_running) {
-    // get new job
+    // get new task
     {
       std::unique_lock<std::mutex> lock(_task_queue_mutex);
       if (_task_queue.size() == 0) continue;
-      job = std::move(_task_queue.front());
+      task = std::move(_task_queue.front());
       _task_queue.pop();
     }
 
     // run it
-    job();
+    task();
   }
 }
 

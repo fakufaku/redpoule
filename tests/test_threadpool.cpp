@@ -28,7 +28,7 @@
 
 #include "threadpool.hpp"
 
-const size_t very_large = 10000000;
+const size_t very_large = 100000000;
 
 int main(int argc, char** argv) {
   int iam, nt;
